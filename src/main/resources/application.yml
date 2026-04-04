@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: grpc-kv-service-tarantool
+  grpc:
+    server:
+      port: 9090
+
+kvservice:
+  limits:
+    max-key-bytes: 256B
+    max-value-bytes: 1MB
+  deadlines:
+    unary: 3s
+    count: 15s
+  range:
+    batch-size: 512
+    max-active-streams: 16

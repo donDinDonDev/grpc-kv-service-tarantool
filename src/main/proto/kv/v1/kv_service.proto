@@ -1,0 +1,90 @@
+syntax = "proto3";
+
+package kv.v1;
+
+option java_multiple_files = true;
+option java_package = "io.kvservice.api.v1";
+option java_outer_classname = "KvServiceProto";
+
+service KvService {
+  // Создаёт новую запись или перезаписывает существующую.
+  // Клиент обязан явно передать либо bytes-значение, либо null_value.
+  rpc Put(PutRequest) returns (PutResponse);
+
+  // Возвращает существующую запись.
+  // Если записи нет, вызов завершается статусом NOT_FOUND.
+  // Если запись есть и value = null, это выражается через record.value.null_value.
+  rpc Get(GetRequest) returns (GetResponse);
+
+  // Идемпотентно удаляет запись по ключу.
+  // Отсутствие записи не является ошибкой.
+  rpc Delete(DeleteRequest) returns (DeleteResponse);
+
+  // Возвращает stream записей диапазона [key_since, key_to) в порядке возрастания ключа.
+  // Пустой диапазон возвращает пустой stream.
+  // Если key_since >= key_to, вызов завершается INVALID_ARGUMENT.
+  rpc Range(RangeRequest) returns (stream RangeItem);
+
+  // Возвращает точное количество записей на момент выполнения запроса.
+  // Операция может быть заметно дороже get/put/delete.
+  rpc Count(CountRequest) returns (CountResponse);
+}
+
+message PutRequest {
+  string key = 1;
+
+  // Поле обязательно по семантике.
+  // Отсутствие value в запросе является INVALID_ARGUMENT, а не неявным null.
+  NullableBytes value = 2;
+}
+
+message PutResponse {}
+
+message GetRequest {
+  string key = 1;
+}
+
+message GetResponse {
+  // Поле обязательно на успешном ответе.
+  KvRecord record = 1;
+}
+
+message DeleteRequest {
+  string key = 1;
+}
+
+message DeleteResponse {}
+
+message RangeRequest {
+  string key_since = 1;
+  string key_to = 2;
+}
+
+message RangeItem {
+  KvRecord record = 1;
+}
+
+message CountRequest {}
+
+message CountResponse {
+  int64 count = 1;
+}
+
+message KvRecord {
+  string key = 1;
+
+  // Семантика:
+  // - data со значением длиной 0 = существующая запись с пустым payload
+  // - null_value = существующая запись со значением null
+  // Отсутствие самой записи кодируется не этим полем, а gRPC status NOT_FOUND.
+  NullableBytes value = 2;
+}
+
+message NullableBytes {
+  oneof kind {
+    bytes data = 1;
+    NullMarker null_value = 2;
+  }
+}
+
+message NullMarker {}
