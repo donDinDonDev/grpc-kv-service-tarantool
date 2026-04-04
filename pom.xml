@@ -23,6 +23,8 @@
         <protobuf.version>4.33.4</protobuf.version>
         <os-maven-plugin.version>1.7.1</os-maven-plugin.version>
         <protobuf-maven-plugin.version>0.6.1</protobuf-maven-plugin.version>
+        <tarantool.sdk.version>1.5.0</tarantool.sdk.version>
+        <testcontainers.version>1.21.3</testcontainers.version>
     </properties>
 
     <dependencyManagement>
@@ -47,6 +49,11 @@
             <artifactId>spring-grpc-spring-boot-starter</artifactId>
         </dependency>
         <dependency>
+            <groupId>io.tarantool</groupId>
+            <artifactId>tarantool-client</artifactId>
+            <version>${tarantool.sdk.version}</version>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
@@ -60,6 +67,12 @@
                     <artifactId>mockito-junit-jupiter</artifactId>
                 </exclusion>
             </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${testcontainers.version}</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 
@@ -94,6 +107,19 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <environmentVariables>
+                        <DOCKER_HOST>unix:///var/run/docker.sock</DOCKER_HOST>
+                        <TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE>/var/run/docker.sock</TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE>
+                    </environmentVariables>
+                    <systemPropertyVariables>
+                        <api.version>1.54</api.version>
+                    </systemPropertyVariables>
+                </configuration>
             </plugin>
         </plugins>
     </build>

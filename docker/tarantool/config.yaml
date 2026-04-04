@@ -1,0 +1,26 @@
+config:
+  context:
+    app_password:
+      from: env
+      env: TT_APP_PASSWORD
+
+credentials:
+  users:
+    kvservice:
+      password: '{{ context.app_password }}'
+      roles: [ super ]
+
+app:
+  file: /opt/tarantool/kvservice/app.lua
+
+groups:
+  group-001:
+    replicasets:
+      replicaset-001:
+        instances:
+          instance-001:
+            database:
+              mode: rw
+            iproto:
+              listen:
+                - uri: 0.0.0.0:3301

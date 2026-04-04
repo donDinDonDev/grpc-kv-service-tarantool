@@ -1,0 +1,1 @@
+-- Repository-managed schema initialization is executed from the Java side.
