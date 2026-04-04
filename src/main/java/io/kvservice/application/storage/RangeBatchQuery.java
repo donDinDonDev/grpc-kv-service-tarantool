@@ -1,5 +1,7 @@
 package io.kvservice.application.storage;
 
+import io.kvservice.application.Utf8LexicographicKeyOrder;
+
 public record RangeBatchQuery(
         String keyFromInclusive,
         String keyToExclusive,
@@ -14,7 +16,7 @@ public record RangeBatchQuery(
         if (keyToExclusive == null || keyToExclusive.isEmpty()) {
             throw new IllegalArgumentException("keyToExclusive must not be empty");
         }
-        if (keyFromInclusive.compareTo(keyToExclusive) >= 0) {
+        if (Utf8LexicographicKeyOrder.compare(keyFromInclusive, keyToExclusive) >= 0) {
             throw new IllegalArgumentException("keyFromInclusive must be less than keyToExclusive");
         }
         if (limit <= 0) {

@@ -12,6 +12,7 @@ import java.util.concurrent.TimeoutException;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import io.kvservice.application.RequestDeadlineExceededException;
+import io.kvservice.application.Utf8LexicographicKeyOrder;
 import io.kvservice.application.storage.KeyValueStoragePort;
 import io.kvservice.application.storage.RangeBatchQuery;
 import io.kvservice.application.storage.StoredEntry;
@@ -68,9 +69,9 @@ public final class TarantoolKeyValueStorage implements KeyValueStoragePort {
     }
 
     @Override
-    public long count() {
+    public long count(Duration timeout) {
         List<Long> values = await(this.client.eval(COUNT_SCRIPT, new TypeReference<List<Long>>() {
-        })).get();
+        }), timeout).get();
         if (values.isEmpty() || values.getFirst() == null) {
             throw StorageAccessException.internal("Tarantool returned null for count()");
         }
@@ -78,18 +79,19 @@ public final class TarantoolKeyValueStorage implements KeyValueStoragePort {
     }
 
     @Override
-    public List<StoredEntry> getRangeBatch(RangeBatchQuery query) {
+    public List<StoredEntry> getRangeBatch(RangeBatchQuery query, Duration timeout) {
         RangeScanStart scanStart = resolveScanStart(query);
         SelectOptions options = SelectOptions.builder()
                 .withLimit(query.limit())
+                .withTimeout(timeoutMillis(timeout))
                 .withIterator(scanStart.iterator())
                 .build();
 
-        SelectResponse<List<Tuple<List<?>>>> response = await(space().select(List.of(scanStart.key()), options));
+        SelectResponse<List<Tuple<List<?>>>> response = await(space().select(List.of(scanStart.key()), options), timeout);
         List<StoredEntry> result = new ArrayList<>(response.get().size());
         for (Tuple<List<?>> tuple : response.get()) {
             StoredEntry entry = this.tupleMapper.toStoredEntry(tuple);
-            if (entry.key().compareTo(query.keyToExclusive()) >= 0) {
+            if (Utf8LexicographicKeyOrder.compare(entry.key(), query.keyToExclusive()) >= 0) {
                 break;
             }
             result.add(entry);
@@ -108,7 +110,7 @@ public final class TarantoolKeyValueStorage implements KeyValueStoragePort {
 
     private RangeScanStart resolveScanStart(RangeBatchQuery query) {
         String startAfter = query.startAfter();
-        if (startAfter == null || startAfter.compareTo(query.keyFromInclusive()) < 0) {
+        if (startAfter == null || Utf8LexicographicKeyOrder.compare(startAfter, query.keyFromInclusive()) < 0) {
             return new RangeScanStart(query.keyFromInclusive(), BoxIterator.GE);
         }
         return new RangeScanStart(startAfter, BoxIterator.GT);

@@ -2,6 +2,9 @@ package io.kvservice.transport.grpc;
 
 import java.util.function.Supplier;
 
+import io.grpc.stub.ServerCallStreamObserver;
+import io.kvservice.api.v1.CountRequest;
+import io.kvservice.api.v1.CountResponse;
 import io.grpc.stub.StreamObserver;
 import io.kvservice.api.v1.DeleteRequest;
 import io.kvservice.api.v1.DeleteResponse;
@@ -10,33 +13,50 @@ import io.kvservice.api.v1.GetResponse;
 import io.kvservice.api.v1.KvServiceGrpc;
 import io.kvservice.api.v1.PutRequest;
 import io.kvservice.api.v1.PutResponse;
+import io.kvservice.api.v1.RangeItem;
+import io.kvservice.api.v1.RangeRequest;
+import io.kvservice.application.CountEntriesUseCase;
 import io.kvservice.application.DeleteValueUseCase;
 import io.kvservice.application.GetValueUseCase;
 import io.kvservice.application.PutValueUseCase;
+import io.kvservice.application.RangeValueUseCase;
+import io.kvservice.application.RequestBudget;
 
 public final class KvGrpcService extends KvServiceGrpc.KvServiceImplBase {
 
     private final PutValueUseCase putValueUseCase;
     private final GetValueUseCase getValueUseCase;
     private final DeleteValueUseCase deleteValueUseCase;
+    private final RangeValueUseCase rangeValueUseCase;
+    private final CountEntriesUseCase countEntriesUseCase;
     private final GrpcNullableBytesMapper valueMapper;
     private final GrpcUnaryRequestBudgetFactory requestBudgetFactory;
+    private final GrpcCountRequestBudgetFactory countRequestBudgetFactory;
     private final GrpcStatusTranslator statusTranslator;
+    private final RangeStreamPermitLimiter rangeStreamPermitLimiter;
 
     public KvGrpcService(
             PutValueUseCase putValueUseCase,
             GetValueUseCase getValueUseCase,
             DeleteValueUseCase deleteValueUseCase,
+            RangeValueUseCase rangeValueUseCase,
+            CountEntriesUseCase countEntriesUseCase,
             GrpcNullableBytesMapper valueMapper,
             GrpcUnaryRequestBudgetFactory requestBudgetFactory,
-            GrpcStatusTranslator statusTranslator
+            GrpcCountRequestBudgetFactory countRequestBudgetFactory,
+            GrpcStatusTranslator statusTranslator,
+            RangeStreamPermitLimiter rangeStreamPermitLimiter
     ) {
         this.putValueUseCase = putValueUseCase;
         this.getValueUseCase = getValueUseCase;
         this.deleteValueUseCase = deleteValueUseCase;
+        this.rangeValueUseCase = rangeValueUseCase;
+        this.countEntriesUseCase = countEntriesUseCase;
         this.valueMapper = valueMapper;
         this.requestBudgetFactory = requestBudgetFactory;
+        this.countRequestBudgetFactory = countRequestBudgetFactory;
         this.statusTranslator = statusTranslator;
+        this.rangeStreamPermitLimiter = rangeStreamPermitLimiter;
     }
 
     @Override
@@ -66,6 +86,40 @@ public final class KvGrpcService extends KvServiceGrpc.KvServiceImplBase {
         });
     }
 
+    @Override
+    public void range(RangeRequest request, StreamObserver<RangeItem> responseObserver) {
+        RangeStreamPermitLimiter.Permit permit = null;
+        try {
+            permit = this.rangeStreamPermitLimiter.acquire();
+            RequestBudget requestBudget = this.requestBudgetFactory.create();
+            GrpcRangeResponseWriter responseWriter = new GrpcRangeResponseWriter(serverObserver(responseObserver), requestBudget);
+            this.rangeValueUseCase.stream(
+                    request.getKeySince(),
+                    request.getKeyTo(),
+                    requestBudget,
+                    entry -> responseWriter.write(RangeItem.newBuilder()
+                            .setRecord(this.valueMapper.toRecord(entry))
+                            .build())
+            );
+            responseObserver.onCompleted();
+        }
+        catch (Throwable failure) {
+            responseObserver.onError(this.statusTranslator.translate(failure));
+        }
+        finally {
+            if (permit != null) {
+                permit.close();
+            }
+        }
+    }
+
+    @Override
+    public void count(CountRequest request, StreamObserver<CountResponse> responseObserver) {
+        executeUnary(responseObserver, () -> CountResponse.newBuilder()
+                .setCount(this.countEntriesUseCase.execute(this.countRequestBudgetFactory.create()))
+                .build());
+    }
+
     private <T> void executeUnary(StreamObserver<T> responseObserver, Supplier<T> action) {
         try {
             T response = action.get();
@@ -75,5 +129,10 @@ public final class KvGrpcService extends KvServiceGrpc.KvServiceImplBase {
         catch (Throwable failure) {
             responseObserver.onError(this.statusTranslator.translate(failure));
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private ServerCallStreamObserver<RangeItem> serverObserver(StreamObserver<RangeItem> responseObserver) {
+        return (ServerCallStreamObserver<RangeItem>) responseObserver;
     }
 }

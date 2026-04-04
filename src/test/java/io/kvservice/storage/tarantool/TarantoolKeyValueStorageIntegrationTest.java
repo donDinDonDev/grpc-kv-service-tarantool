@@ -135,6 +135,20 @@ class TarantoolKeyValueStorageIntegrationTest {
     }
 
     @Test
+    void readsRangeUsingUtf8LexicographicBounds() {
+        String utf8LowerKey = key(0xE000);
+        String utf8UpperKey = key(0x10000);
+
+        this.storage.put(utf8LowerKey, StoredValue.bytes(new byte[] { 1 }));
+        this.storage.put(utf8UpperKey, StoredValue.bytes(new byte[] { 2 }));
+
+        List<StoredEntry> batch = this.storage.getRangeBatch(new RangeBatchQuery(utf8LowerKey, utf8UpperKey, null, 10));
+
+        assertThat(batch).extracting(StoredEntry::key).containsExactly(utf8LowerKey);
+        assertThat(bytesOf(batch.getFirst().value())).containsExactly(1);
+    }
+
+    @Test
     void initializerIsIdempotentAndKeepsSchemaUsable() throws Exception {
         this.initializer.initialize();
         this.initializer.initialize();
@@ -170,6 +184,10 @@ class TarantoolKeyValueStorageIntegrationTest {
                 .get(5, TimeUnit.SECONDS)
                 .get()
                 .getFirst();
+    }
+
+    private static String key(int codePoint) {
+        return new String(Character.toChars(codePoint));
     }
 
 }

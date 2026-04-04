@@ -24,7 +24,15 @@ public interface KeyValueStoragePort {
 
     void delete(String key, Duration timeout);
 
-    long count();
+    default long count() {
+        return count(null);
+    }
 
-    List<StoredEntry> getRangeBatch(RangeBatchQuery query);
+    long count(Duration timeout);
+
+    default List<StoredEntry> getRangeBatch(RangeBatchQuery query) {
+        return getRangeBatch(query, null);
+    }
+
+    List<StoredEntry> getRangeBatch(RangeBatchQuery query, Duration timeout);
 }
