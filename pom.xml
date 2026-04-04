@@ -125,7 +125,7 @@
                         <TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE>/var/run/docker.sock</TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE>
                     </environmentVariables>
                     <systemPropertyVariables>
-                        <api.version>1.54</api.version>
+                        <api.version>1.48</api.version>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>
