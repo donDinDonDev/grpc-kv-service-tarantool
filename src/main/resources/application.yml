@@ -4,8 +4,43 @@ spring:
   grpc:
     server:
       port: 9090
+      shutdown-grace-period: 30s
+      health:
+        actuator:
+          enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState,tarantool
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+
+logging:
+  structured:
+    format:
+      console: logstash
+    json:
+      context:
+        include: true
 
 kvservice:
+  grpc:
+    max-request-bytes: 4MB
+    max-response-bytes: 4MB
   limits:
     max-key-bytes: 256B
     max-value-bytes: 1MB

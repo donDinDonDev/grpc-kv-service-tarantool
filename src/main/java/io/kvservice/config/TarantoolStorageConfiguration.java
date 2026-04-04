@@ -1,6 +1,8 @@
 package io.kvservice.config;
 
 import io.kvservice.application.storage.KeyValueStoragePort;
+import io.kvservice.observability.TarantoolObservability;
+import io.kvservice.observability.TarantoolReadinessHealthIndicator;
 import io.kvservice.storage.tarantool.TarantoolKeyValueStorage;
 import io.kvservice.storage.tarantool.TarantoolSpaceInitializer;
 import io.tarantool.client.box.TarantoolBoxClient;
@@ -15,7 +17,8 @@ import org.springframework.context.annotation.Configuration;
 public class TarantoolStorageConfiguration {
 
     @Bean(destroyMethod = "close")
-    TarantoolBoxClient tarantoolBoxClient(KvServiceProperties properties) throws Exception {
+    TarantoolBoxClient tarantoolBoxClient(KvServiceProperties properties, TarantoolObservability observability)
+            throws Exception {
         KvServiceProperties.Tarantool tarantool = properties.getTarantool();
         return TarantoolFactory.box()
                 .withHost(tarantool.getHost())
@@ -24,6 +27,7 @@ public class TarantoolStorageConfiguration {
                 .withPassword(tarantool.getPassword())
                 .withConnectTimeout(tarantool.getConnectTimeout().toMillis())
                 .withReconnectAfter(tarantool.getReconnectAfter().toMillis())
+                .withPoolEventListener(observability)
                 .withFetchSchema(true)
                 .build();
     }
@@ -49,9 +53,18 @@ public class TarantoolStorageConfiguration {
     KeyValueStoragePort keyValueStoragePort(
             TarantoolBoxClient client,
             KvServiceProperties properties,
-            ObjectProvider<TarantoolSpaceInitializer> initializerProvider
+            ObjectProvider<TarantoolSpaceInitializer> initializerProvider,
+            TarantoolObservability observability
     ) {
         initializerProvider.getIfAvailable();
-        return new TarantoolKeyValueStorage(client, properties.getTarantool().getRequestTimeout());
+        return new TarantoolKeyValueStorage(client, properties.getTarantool().getRequestTimeout(), observability);
+    }
+
+    @Bean("tarantoolHealthIndicator")
+    TarantoolReadinessHealthIndicator tarantoolHealthIndicator(
+            TarantoolBoxClient client,
+            KvServiceProperties properties
+    ) {
+        return new TarantoolReadinessHealthIndicator(client, properties.getTarantool().getRequestTimeout());
     }
 }

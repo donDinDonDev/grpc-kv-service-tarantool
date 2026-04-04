@@ -25,6 +25,8 @@ import io.kvservice.application.storage.KeyValueStoragePort;
 import io.kvservice.application.storage.RangeBatchQuery;
 import io.kvservice.application.storage.StoredEntry;
 import io.kvservice.application.storage.StoredValue;
+import io.kvservice.observability.RangeStreamMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.util.unit.DataSize;
@@ -52,7 +54,8 @@ class KvGrpcServiceRangeTest {
                 new GrpcUnaryRequestBudgetFactory(Duration.ofSeconds(3)),
                 new GrpcCountRequestBudgetFactory(Duration.ofSeconds(15)),
                 new GrpcStatusTranslator(),
-                new RangeStreamPermitLimiter(1)
+                new RangeStreamPermitLimiter(1),
+                new RangeStreamMetrics(new SimpleMeterRegistry())
         );
 
         TestServerCallStreamObserver<RangeItem> firstObserver = new TestServerCallStreamObserver<>();

@@ -10,7 +10,8 @@ import org.springframework.util.unit.DataSize;
 
 @SpringBootTest(properties = {
         "spring.grpc.server.port=0",
-        "kvservice.tarantool.enabled=false"
+        "kvservice.tarantool.enabled=false",
+        "management.endpoint.health.group.readiness.include=readinessState"
 })
 class KvServiceApplicationTests {
 
@@ -19,6 +20,8 @@ class KvServiceApplicationTests {
 
     @Test
     void contextLoadsWithNormalizedBootstrapDefaults() {
+        assertThat(this.properties.getGrpc().getMaxRequestBytes()).isEqualTo(DataSize.ofMegabytes(4));
+        assertThat(this.properties.getGrpc().getMaxResponseBytes()).isEqualTo(DataSize.ofMegabytes(4));
         assertThat(this.properties.getLimits().getMaxKeyBytes()).isEqualTo(DataSize.ofBytes(256));
         assertThat(this.properties.getLimits().getMaxValueBytes()).isEqualTo(DataSize.ofMegabytes(1));
         assertThat(this.properties.getDeadlines().getUnary()).hasSeconds(3);

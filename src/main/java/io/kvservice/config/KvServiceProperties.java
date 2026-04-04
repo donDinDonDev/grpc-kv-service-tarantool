@@ -10,10 +10,15 @@ import org.springframework.util.unit.DataSize;
 @ConfigurationProperties(prefix = "kvservice")
 public class KvServiceProperties {
 
+    private final Grpc grpc = new Grpc();
     private final Limits limits = new Limits();
     private final Deadlines deadlines = new Deadlines();
     private final Range range = new Range();
     private final Tarantool tarantool = new Tarantool();
+
+    public Grpc getGrpc() {
+        return this.grpc;
+    }
 
     public Limits getLimits() {
         return this.limits;
@@ -29,6 +34,29 @@ public class KvServiceProperties {
 
     public Tarantool getTarantool() {
         return this.tarantool;
+    }
+
+    public static final class Grpc {
+
+        private DataSize maxRequestBytes = DataSize.ofMegabytes(4);
+
+        private DataSize maxResponseBytes = DataSize.ofMegabytes(4);
+
+        public DataSize getMaxRequestBytes() {
+            return this.maxRequestBytes;
+        }
+
+        public void setMaxRequestBytes(DataSize maxRequestBytes) {
+            this.maxRequestBytes = maxRequestBytes;
+        }
+
+        public DataSize getMaxResponseBytes() {
+            return this.maxResponseBytes;
+        }
+
+        public void setMaxResponseBytes(DataSize maxResponseBytes) {
+            this.maxResponseBytes = maxResponseBytes;
+        }
     }
 
     public static final class Limits {

@@ -2,6 +2,8 @@ package io.kvservice.transport.grpc;
 
 import java.util.function.Supplier;
 
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.ServerCallStreamObserver;
 import io.kvservice.api.v1.CountRequest;
 import io.kvservice.api.v1.CountResponse;
@@ -21,6 +23,7 @@ import io.kvservice.application.GetValueUseCase;
 import io.kvservice.application.PutValueUseCase;
 import io.kvservice.application.RangeValueUseCase;
 import io.kvservice.application.RequestBudget;
+import io.kvservice.observability.RangeStreamMetrics;
 
 public final class KvGrpcService extends KvServiceGrpc.KvServiceImplBase {
 
@@ -34,6 +37,7 @@ public final class KvGrpcService extends KvServiceGrpc.KvServiceImplBase {
     private final GrpcCountRequestBudgetFactory countRequestBudgetFactory;
     private final GrpcStatusTranslator statusTranslator;
     private final RangeStreamPermitLimiter rangeStreamPermitLimiter;
+    private final RangeStreamMetrics rangeStreamMetrics;
 
     public KvGrpcService(
             PutValueUseCase putValueUseCase,
@@ -45,7 +49,8 @@ public final class KvGrpcService extends KvServiceGrpc.KvServiceImplBase {
             GrpcUnaryRequestBudgetFactory requestBudgetFactory,
             GrpcCountRequestBudgetFactory countRequestBudgetFactory,
             GrpcStatusTranslator statusTranslator,
-            RangeStreamPermitLimiter rangeStreamPermitLimiter
+            RangeStreamPermitLimiter rangeStreamPermitLimiter,
+            RangeStreamMetrics rangeStreamMetrics
     ) {
         this.putValueUseCase = putValueUseCase;
         this.getValueUseCase = getValueUseCase;
@@ -57,6 +62,7 @@ public final class KvGrpcService extends KvServiceGrpc.KvServiceImplBase {
         this.countRequestBudgetFactory = countRequestBudgetFactory;
         this.statusTranslator = statusTranslator;
         this.rangeStreamPermitLimiter = rangeStreamPermitLimiter;
+        this.rangeStreamMetrics = rangeStreamMetrics;
     }
 
     @Override
@@ -89,24 +95,36 @@ public final class KvGrpcService extends KvServiceGrpc.KvServiceImplBase {
     @Override
     public void range(RangeRequest request, StreamObserver<RangeItem> responseObserver) {
         RangeStreamPermitLimiter.Permit permit = null;
+        RangeStreamMetrics.ActiveStream activeStream = null;
+        Status.Code statusCode = Status.Code.OK;
         try {
             permit = this.rangeStreamPermitLimiter.acquire();
+            activeStream = this.rangeStreamMetrics.startStream();
+            RangeStreamMetrics.ActiveStream streamMetrics = activeStream;
             RequestBudget requestBudget = this.requestBudgetFactory.create();
             GrpcRangeResponseWriter responseWriter = new GrpcRangeResponseWriter(serverObserver(responseObserver), requestBudget);
             this.rangeValueUseCase.stream(
                     request.getKeySince(),
                     request.getKeyTo(),
                     requestBudget,
-                    entry -> responseWriter.write(RangeItem.newBuilder()
-                            .setRecord(this.valueMapper.toRecord(entry))
-                            .build())
+                    entry -> {
+                        responseWriter.write(RangeItem.newBuilder()
+                                .setRecord(this.valueMapper.toRecord(entry))
+                                .build());
+                        streamMetrics.recordItem();
+                    }
             );
             responseObserver.onCompleted();
         }
         catch (Throwable failure) {
-            responseObserver.onError(this.statusTranslator.translate(failure));
+            StatusRuntimeException translatedFailure = this.statusTranslator.translate(failure);
+            statusCode = translatedFailure.getStatus().getCode();
+            responseObserver.onError(translatedFailure);
         }
         finally {
+            if (activeStream != null) {
+                activeStream.complete(statusCode);
+            }
             if (permit != null) {
                 permit.close();
             }

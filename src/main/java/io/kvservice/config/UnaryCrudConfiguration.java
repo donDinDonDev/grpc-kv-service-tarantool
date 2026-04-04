@@ -7,6 +7,7 @@ import io.kvservice.application.KeyValueValidator;
 import io.kvservice.application.PutValueUseCase;
 import io.kvservice.application.RangeValueUseCase;
 import io.kvservice.application.storage.KeyValueStoragePort;
+import io.kvservice.observability.RangeStreamMetrics;
 import io.kvservice.transport.grpc.GrpcCountRequestBudgetFactory;
 import io.kvservice.transport.grpc.GrpcNullableBytesMapper;
 import io.kvservice.transport.grpc.GrpcStatusTranslator;
@@ -94,7 +95,8 @@ public class UnaryCrudConfiguration {
             GrpcUnaryRequestBudgetFactory requestBudgetFactory,
             GrpcCountRequestBudgetFactory countRequestBudgetFactory,
             GrpcStatusTranslator statusTranslator,
-            RangeStreamPermitLimiter rangeStreamPermitLimiter
+            RangeStreamPermitLimiter rangeStreamPermitLimiter,
+            RangeStreamMetrics rangeStreamMetrics
     ) {
         return new KvGrpcService(
                 putValueUseCase,
@@ -106,7 +108,8 @@ public class UnaryCrudConfiguration {
                 requestBudgetFactory,
                 countRequestBudgetFactory,
                 statusTranslator,
-                rangeStreamPermitLimiter
+                rangeStreamPermitLimiter,
+                rangeStreamMetrics
         );
     }
 }
