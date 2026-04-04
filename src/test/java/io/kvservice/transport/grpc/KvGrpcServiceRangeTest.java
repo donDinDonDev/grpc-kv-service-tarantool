@@ -8,6 +8,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import io.grpc.Context;
@@ -34,29 +35,18 @@ import org.springframework.util.unit.DataSize;
 class KvGrpcServiceRangeTest {
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
     @AfterEach
     void shutdownExecutor() {
         this.executor.shutdownNow();
+        this.scheduler.shutdownNow();
     }
 
     @Test
     void enforcesConfiguredActiveRangeStreamLimitAndReleasesPermitOnCancellation() throws Exception {
         BlockingRangeStorage storage = new BlockingRangeStorage();
-        KeyValueValidator validator = new KeyValueValidator(DataSize.ofBytes(32), DataSize.ofBytes(1024));
-        KvGrpcService service = new KvGrpcService(
-                new PutValueUseCase(storage, validator),
-                new GetValueUseCase(storage, validator),
-                new DeleteValueUseCase(storage, validator),
-                new RangeValueUseCase(storage, validator, 1),
-                new CountEntriesUseCase(storage),
-                new GrpcNullableBytesMapper(),
-                new GrpcUnaryRequestBudgetFactory(Duration.ofSeconds(3)),
-                new GrpcCountRequestBudgetFactory(Duration.ofSeconds(15)),
-                new GrpcStatusTranslator(),
-                new RangeStreamPermitLimiter(1),
-                new RangeStreamMetrics(new SimpleMeterRegistry())
-        );
+        KvGrpcService service = serviceFor(storage, Duration.ofSeconds(3), 1);
 
         TestServerCallStreamObserver<RangeItem> firstObserver = new TestServerCallStreamObserver<>();
         firstObserver.setReady(false);
@@ -88,6 +78,48 @@ class KvGrpcServiceRangeTest {
         assertThat(thirdObserver.completed()).isTrue();
         assertThat(thirdObserver.error()).isNull();
         assertThat(storage.rangeRequests).hasSize(2);
+    }
+
+    @Test
+    void stopsStreamingWithDeadlineExceededWhenClientStopsReading() throws Exception {
+        BlockingRangeStorage storage = new BlockingRangeStorage();
+        KvGrpcService service = serviceFor(storage, Duration.ofSeconds(3), 1);
+
+        TestServerCallStreamObserver<RangeItem> observer = new TestServerCallStreamObserver<>();
+        observer.setReady(false);
+        Future<?> call = this.executor.submit(() -> Context.current()
+                .withDeadlineAfter(50, TimeUnit.MILLISECONDS, this.scheduler)
+                .run(() -> service.range(
+                        RangeRequest.newBuilder().setKeySince("a").setKeyTo("z").build(),
+                        observer
+                )));
+
+        assertThat(storage.firstBatchStarted.await(5, TimeUnit.SECONDS)).isTrue();
+        call.get(5, TimeUnit.SECONDS);
+
+        assertThat(observer.values()).isEmpty();
+        assertThat(observer.completed()).isFalse();
+        assertThat(observer.error()).isInstanceOf(StatusRuntimeException.class);
+        assertThat(((StatusRuntimeException) observer.error()).getStatus().getCode())
+                .isEqualTo(Status.Code.DEADLINE_EXCEEDED);
+        assertThat(storage.rangeRequests).hasSize(1);
+    }
+
+    private KvGrpcService serviceFor(KeyValueStoragePort storage, Duration unaryDeadline, int maxActiveStreams) {
+        KeyValueValidator validator = new KeyValueValidator(DataSize.ofBytes(32), DataSize.ofBytes(1024));
+        return new KvGrpcService(
+                new PutValueUseCase(storage, validator),
+                new GetValueUseCase(storage, validator),
+                new DeleteValueUseCase(storage, validator),
+                new RangeValueUseCase(storage, validator, 1),
+                new CountEntriesUseCase(storage),
+                new GrpcNullableBytesMapper(),
+                new GrpcUnaryRequestBudgetFactory(unaryDeadline),
+                new GrpcCountRequestBudgetFactory(Duration.ofSeconds(15)),
+                new GrpcStatusTranslator(),
+                new RangeStreamPermitLimiter(maxActiveStreams),
+                new RangeStreamMetrics(new SimpleMeterRegistry())
+        );
     }
 
     private static final class BlockingRangeStorage implements KeyValueStoragePort {

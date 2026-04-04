@@ -20,6 +20,10 @@ final class GrpcRequestBudgetSupport {
         if (timeout.isNegative() || timeout.isZero()) {
             throw new RequestDeadlineExceededException("deadline exceeded");
         }
-        return RequestBudget.of(timeout, context::isCancelled);
+        return RequestBudget.of(timeout, () -> context.isCancelled() && !deadlineExpired(context, deadline));
+    }
+
+    private static boolean deadlineExpired(Context context, Deadline deadline) {
+        return deadline != null && context.isCancelled() && deadline.isExpired();
     }
 }
