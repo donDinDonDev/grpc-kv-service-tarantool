@@ -1,15 +1,28 @@
 package io.kvservice.application.storage;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 
 public interface KeyValueStoragePort {
 
-    void put(String key, StoredValue value);
+    default void put(String key, StoredValue value) {
+        put(key, value, null);
+    }
 
-    Optional<StoredEntry> get(String key);
+    void put(String key, StoredValue value, Duration timeout);
 
-    void delete(String key);
+    default Optional<StoredEntry> get(String key) {
+        return get(key, null);
+    }
+
+    Optional<StoredEntry> get(String key, Duration timeout);
+
+    default void delete(String key) {
+        delete(key, null);
+    }
+
+    void delete(String key, Duration timeout);
 
     long count();
 

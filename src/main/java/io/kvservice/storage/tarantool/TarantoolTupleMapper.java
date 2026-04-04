@@ -13,12 +13,12 @@ final class TarantoolTupleMapper {
     StoredEntry toStoredEntry(Tuple<List<?>> tuple) {
         List<?> rawTuple = tuple.get();
         if (rawTuple == null || rawTuple.size() < 2) {
-            throw new StorageAccessException("Unexpected tuple shape returned by Tarantool");
+            throw StorageAccessException.internal("unexpected tuple shape returned by Tarantool");
         }
 
         Object rawKey = rawTuple.getFirst();
         if (!(rawKey instanceof String key) || key.isEmpty()) {
-            throw new StorageAccessException("Unexpected key returned by Tarantool");
+            throw StorageAccessException.internal("unexpected key returned by Tarantool");
         }
 
         return new StoredEntry(key, toStoredValue(rawTuple.get(1)));
@@ -36,6 +36,6 @@ final class TarantoolTupleMapper {
             byteBuffer.duplicate().get(bytes);
             return StoredValue.bytes(bytes);
         }
-        throw new StorageAccessException("Unexpected value type returned by Tarantool: " + rawValue.getClass().getName());
+        throw StorageAccessException.internal("unexpected value type returned by Tarantool: " + rawValue.getClass().getName());
     }
 }

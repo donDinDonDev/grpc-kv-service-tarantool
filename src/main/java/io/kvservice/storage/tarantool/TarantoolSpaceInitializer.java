@@ -38,14 +38,14 @@ public final class TarantoolSpaceInitializer {
                     .get(this.requestTimeout.toMillis(), TimeUnit.MILLISECONDS);
         }
         catch (IOException exception) {
-            throw new StorageAccessException("Failed to load Tarantool init script", exception);
+            throw StorageAccessException.internal("failed to load Tarantool init script", exception);
         }
         catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            throw new StorageAccessException("Tarantool init was interrupted", exception);
+            throw StorageAccessException.cancelled("Tarantool init was interrupted", exception);
         }
         catch (ExecutionException | TimeoutException exception) {
-            throw new StorageAccessException("Tarantool init failed", exception);
+            throw StorageAccessException.unavailable("Tarantool init failed", exception);
         }
     }
 }
