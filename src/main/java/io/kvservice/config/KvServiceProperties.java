@@ -138,7 +138,7 @@ public class KvServiceProperties {
 
         private String username = "kvservice";
 
-        private String password = "kvservice";
+        private String password = "";
 
         private Duration connectTimeout = Duration.ofSeconds(3);
 

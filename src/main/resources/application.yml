@@ -1,9 +1,14 @@
+server:
+  port: ${KV_HTTP_PORT:8080}
+
 spring:
   application:
     name: grpc-kv-service-tarantool
+  profiles:
+    default: local
   grpc:
     server:
-      port: 9090
+      port: ${KV_GRPC_PORT:9090}
       shutdown-grace-period: 30s
       health:
         actuator:
@@ -51,15 +56,11 @@ kvservice:
     batch-size: 512
     max-active-streams: 16
   tarantool:
-    enabled: true
-    host: ${KV_TARANTOOL_HOST:127.0.0.1}
-    port: ${KV_TARANTOOL_PORT:3301}
-    username: ${KV_TARANTOOL_USERNAME:kvservice}
-    password: ${KV_TARANTOOL_PASSWORD:kvservice}
-    connect-timeout: 3s
-    reconnect-after: 1s
-    request-timeout: 5s
+    enabled: ${KV_TARANTOOL_ENABLED:true}
+    connect-timeout: ${KV_TARANTOOL_CONNECT_TIMEOUT:3s}
+    reconnect-after: ${KV_TARANTOOL_RECONNECT_AFTER:1s}
+    request-timeout: ${KV_TARANTOOL_REQUEST_TIMEOUT:5s}
     init:
-      enabled: true
+      enabled: ${KV_TARANTOOL_INIT_ENABLED:true}
       engine: ${KV_TARANTOOL_ENGINE:vinyl}
       script-location: classpath:tarantool/kv-init.lua

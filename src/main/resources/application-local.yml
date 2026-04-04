@@ -1,0 +1,6 @@
+kvservice:
+  tarantool:
+    host: ${KV_TARANTOOL_HOST:127.0.0.1}
+    port: ${KV_TARANTOOL_PORT:3301}
+    username: ${KV_TARANTOOL_USERNAME:kvservice}
+    password: ${KV_TARANTOOL_PASSWORD:}

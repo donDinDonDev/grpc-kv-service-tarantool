@@ -1,0 +1,43 @@
+services:
+  tarantool:
+    image: tarantool/tarantool:3.2.1
+    environment:
+      TT_APP_NAME: kvservice
+      TT_INSTANCE_NAME: instance-001
+      TT_APP_PASSWORD: ${KV_TARANTOOL_PASSWORD:?KV_TARANTOOL_PASSWORD must be set}
+    ports:
+      - "${KV_TARANTOOL_PORT:-3301}:3301"
+    volumes:
+      - ./docker/tarantool/config.yaml:/opt/tarantool/kvservice/config.yaml:ro
+      - ./docker/tarantool/app.lua:/opt/tarantool/kvservice/app.lua:ro
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "tarantool",
+          "-e",
+          "local socket = require('socket'); local conn = socket.tcp_connect('127.0.0.1', 3301); if conn ~= nil then conn:close() os.exit(0) end os.exit(1)"
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+
+  kvservice:
+    build:
+      context: .
+    depends_on:
+      tarantool:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: container
+      KV_HTTP_PORT: 8080
+      KV_GRPC_PORT: 9090
+      KV_TARANTOOL_HOST: tarantool
+      KV_TARANTOOL_PORT: 3301
+      KV_TARANTOOL_USERNAME: kvservice
+      KV_TARANTOOL_PASSWORD: ${KV_TARANTOOL_PASSWORD:?KV_TARANTOOL_PASSWORD must be set}
+    ports:
+      - "${KV_HTTP_PORT:-8080}:8080"
+      - "${KV_GRPC_PORT:-9090}:9090"
+    restart: on-failure
