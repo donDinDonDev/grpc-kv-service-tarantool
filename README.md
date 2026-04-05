@@ -12,6 +12,14 @@ gRPC key-value сервис на Spring Boot 4 и Tarantool. Публичный 
 - `config` связывает профили `local`/`container`, порты, лимиты, deadlines и параметры подключения.
 - `observability` отвечает за structured logging, readiness/liveness, метрики, Micrometer/OpenTelemetry-compatible tracing и ограничения runtime-потока вроде контроля активных `range`-stream.
 
+Короткая repo-facing схема слоёв и ключевых trade-off'ов вынесена в [`docs/architecture-note.md`](docs/architecture-note.md).
+
+## Публичные документы
+
+- [`docs/architecture-note.md`](docs/architecture-note.md) — короткая архитектурная схема, реальные package/layer boundaries и ключевые runtime trade-off'ы.
+- [`docs/grpcurl-examples.md`](docs/grpcurl-examples.md) — воспроизводимые `grpcurl` примеры для всех пяти RPC без server reflection и без зависимости от внутренних документов.
+- [`docs/performance-note.md`](docs/performance-note.md) — perf/heavy-scale workflow, canonical measurement mode и интерпретация evidence.
+
 ## Требования
 
 - JDK 21
@@ -95,6 +103,13 @@ docker compose up -d tarantool
 
 Этот workflow не входит в обычный `clean test`, не заменяет `./mvnw -Pperf verify`, а методика и caveats описаны в [`docs/performance-note.md`](docs/performance-note.md).
 
+## Краткий performance summary
+
+- `./mvnw -Pperf verify` и `./mvnw -Pperf-heavy verify` остаются отдельными evidence workflows, а не частью обязательного PR gate.
+- Текущий публичный repo default после perf review: `range.batch-size=256`, `range.max-active-streams=16`, default deadlines `3s` для unary RPC и `15s` для `Count`.
+- Эти defaults в публичной документации трактуются как подтверждённо сохранённые текущим evidence, а не как универсально лучшие числа для любой машины или любого workload.
+- Численные latency/throughput claims нужно читать только по свежим generated reports в `target/perf-reports/` и `target/perf-heavy-reports/` конкретного запуска.
+
 GitHub Actions workflow находится в [`.github/workflows/ci.yml`](.github/workflows/ci.yml) и запускает ту же реальную команду проекта:
 
 ```bash
@@ -131,6 +146,8 @@ docker compose up --build -d
 | `Delete` | Идемпотентно удаляет запись. Отсутствующий ключ не считается ошибкой. |
 | `Range` | Server-streaming диапазон `[key_since, key_to)` в порядке возрастания ключа. |
 | `Count` | Возвращает точное количество записей на момент вызова. |
+
+Исполняемые `grpcurl` команды для всех пяти RPC, включая `Put` с явным `NullableBytes`, `Get`/`NOT_FOUND`, идемпотентный `Delete`, half-open `Range` и exact `Count`, находятся в [`docs/grpcurl-examples.md`](docs/grpcurl-examples.md).
 
 ### Null semantics
 
