@@ -163,5 +163,67 @@
                 </plugins>
             </build>
         </profile>
+        <profile>
+            <id>perf-heavy</id>
+            <properties>
+                <kvservice.perf-heavy.dataset-size>5000000</kvservice.perf-heavy.dataset-size>
+                <kvservice.perf-heavy.value-bytes>32</kvservice.perf-heavy.value-bytes>
+                <kvservice.perf-heavy.range-window-size>500000</kvservice.perf-heavy.range-window-size>
+                <kvservice.perf-heavy.guardrail-window-size>25000</kvservice.perf-heavy.guardrail-window-size>
+                <kvservice.perf-heavy.guardrail-requested-streams>20</kvservice.perf-heavy.guardrail-requested-streams>
+                <kvservice.perf-heavy.unary-concurrency>8</kvservice.perf-heavy.unary-concurrency>
+                <kvservice.perf-heavy.existing-get-probes>512</kvservice.perf-heavy.existing-get-probes>
+                <kvservice.perf-heavy.temp-crud-probes>128</kvservice.perf-heavy.temp-crud-probes>
+                <kvservice.perf-heavy.count-runs>2</kvservice.perf-heavy.count-runs>
+                <kvservice.perf-heavy.range-runs>2</kvservice.perf-heavy.range-runs>
+                <kvservice.perf-heavy.seed-batch-size>20000</kvservice.perf-heavy.seed-batch-size>
+                <kvservice.perf-heavy.seed-concurrency>4</kvservice.perf-heavy.seed-concurrency>
+                <kvservice.perf-heavy.seed-batch-timeout-seconds>120</kvservice.perf-heavy.seed-batch-timeout-seconds>
+                <kvservice.perf-heavy.seed-overall-timeout-minutes>45</kvservice.perf-heavy.seed-overall-timeout-minutes>
+                <kvservice.perf-heavy.count-deadline-seconds>120</kvservice.perf-heavy.count-deadline-seconds>
+                <kvservice.perf-heavy.range-deadline-seconds>180</kvservice.perf-heavy.range-deadline-seconds>
+                <kvservice.perf-heavy.completion-request-timeout-seconds>120</kvservice.perf-heavy.completion-request-timeout-seconds>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <includes>
+                                <include>**/*HeavyScaleIT.java</include>
+                            </includes>
+                            <skipTests>false</skipTests>
+                            <environmentVariables>
+                                <DOCKER_HOST>unix:///var/run/docker.sock</DOCKER_HOST>
+                                <TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE>/var/run/docker.sock</TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE>
+                            </environmentVariables>
+                            <systemPropertyVariables>
+                                <api.version>1.48</api.version>
+                                <kvservice.perf.report-dir>${project.build.directory}/perf-heavy-reports</kvservice.perf.report-dir>
+                                <kvservice.perf.command>./mvnw -Pperf-heavy verify</kvservice.perf.command>
+                                <kvservice.perf-heavy.dataset-size>${kvservice.perf-heavy.dataset-size}</kvservice.perf-heavy.dataset-size>
+                                <kvservice.perf-heavy.value-bytes>${kvservice.perf-heavy.value-bytes}</kvservice.perf-heavy.value-bytes>
+                                <kvservice.perf-heavy.range-window-size>${kvservice.perf-heavy.range-window-size}</kvservice.perf-heavy.range-window-size>
+                                <kvservice.perf-heavy.guardrail-window-size>${kvservice.perf-heavy.guardrail-window-size}</kvservice.perf-heavy.guardrail-window-size>
+                                <kvservice.perf-heavy.guardrail-requested-streams>${kvservice.perf-heavy.guardrail-requested-streams}</kvservice.perf-heavy.guardrail-requested-streams>
+                                <kvservice.perf-heavy.unary-concurrency>${kvservice.perf-heavy.unary-concurrency}</kvservice.perf-heavy.unary-concurrency>
+                                <kvservice.perf-heavy.existing-get-probes>${kvservice.perf-heavy.existing-get-probes}</kvservice.perf-heavy.existing-get-probes>
+                                <kvservice.perf-heavy.temp-crud-probes>${kvservice.perf-heavy.temp-crud-probes}</kvservice.perf-heavy.temp-crud-probes>
+                                <kvservice.perf-heavy.count-runs>${kvservice.perf-heavy.count-runs}</kvservice.perf-heavy.count-runs>
+                                <kvservice.perf-heavy.range-runs>${kvservice.perf-heavy.range-runs}</kvservice.perf-heavy.range-runs>
+                                <kvservice.perf-heavy.seed-batch-size>${kvservice.perf-heavy.seed-batch-size}</kvservice.perf-heavy.seed-batch-size>
+                                <kvservice.perf-heavy.seed-concurrency>${kvservice.perf-heavy.seed-concurrency}</kvservice.perf-heavy.seed-concurrency>
+                                <kvservice.perf-heavy.seed-batch-timeout-seconds>${kvservice.perf-heavy.seed-batch-timeout-seconds}</kvservice.perf-heavy.seed-batch-timeout-seconds>
+                                <kvservice.perf-heavy.seed-overall-timeout-minutes>${kvservice.perf-heavy.seed-overall-timeout-minutes}</kvservice.perf-heavy.seed-overall-timeout-minutes>
+                                <kvservice.perf-heavy.count-deadline-seconds>${kvservice.perf-heavy.count-deadline-seconds}</kvservice.perf-heavy.count-deadline-seconds>
+                                <kvservice.perf-heavy.range-deadline-seconds>${kvservice.perf-heavy.range-deadline-seconds}</kvservice.perf-heavy.range-deadline-seconds>
+                                <kvservice.perf-heavy.completion-request-timeout-seconds>${kvservice.perf-heavy.completion-request-timeout-seconds}</kvservice.perf-heavy.completion-request-timeout-seconds>
+                            </systemPropertyVariables>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
     </profiles>
 </project>

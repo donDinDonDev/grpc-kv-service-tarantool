@@ -75,6 +75,14 @@ docker compose up -d tarantool
 
 Этот профиль не подтягивается в обычный `clean test`, пишет evidence в `target/perf-reports/kvservice-performance-report.md` и описан в [`docs/performance-note.md`](docs/performance-note.md).
 
+Отдельный bounded heavy-scale прогон:
+
+```bash
+./mvnw -Pperf-heavy verify
+```
+
+Этот workflow не входит в обычный `clean test`, не заменяет `./mvnw -Pperf verify`, а методика и caveats описаны в [`docs/performance-note.md`](docs/performance-note.md).
+
 GitHub Actions workflow находится в [`.github/workflows/ci.yml`](.github/workflows/ci.yml) и запускает ту же реальную команду проекта:
 
 ```bash

@@ -14,7 +14,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.CancellationException;
 import java.util.function.Function;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import io.kvservice.application.RequestDeadlineExceededException;
 import io.kvservice.application.Utf8LexicographicKeyOrder;
 import io.kvservice.application.storage.KeyValueStoragePort;
@@ -93,12 +92,20 @@ public final class TarantoolKeyValueStorage implements KeyValueStoragePort {
     @Override
     public long count(Duration timeout) {
         return this.observability.observe("count", Map.of(), () -> {
-            List<Long> values = execute(remainingTimeout -> this.client.eval(COUNT_SCRIPT, new TypeReference<List<Long>>() {
-            }), timeout).get();
+            List<?> values = execute(remainingTimeout -> this.client.eval(
+                    COUNT_SCRIPT,
+                    List.of(),
+                    BaseOptions.builder()
+                            .withTimeout(timeoutMillis(remainingTimeout))
+                            .build()
+            ), timeout).get();
             if (values.isEmpty() || values.getFirst() == null) {
                 throw StorageAccessException.internal("Tarantool returned null for count()");
             }
-            return values.getFirst();
+            if (!(values.getFirst() instanceof Number countValue)) {
+                throw StorageAccessException.internal("Tarantool returned non-numeric count()");
+            }
+            return countValue.longValue();
         });
     }
 
