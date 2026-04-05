@@ -18,7 +18,7 @@ gRPC key-value сервис на Spring Boot 4 и Tarantool. Публичный 
 - Docker и Docker Compose
 - Bash для `scripts/start-local-stack.sh`
 
-`./mvnw clean test` поднимает реальный Tarantool через Testcontainers, поэтому для тестов нужен доступный Docker daemon.
+`./mvnw clean test` и `./mvnw clean verify` поднимают реальный Tarantool через Testcontainers, поэтому для тестов и quality gate нужен доступный Docker daemon.
 
 ## Быстрый старт
 
@@ -67,6 +67,18 @@ docker compose up -d tarantool
 ./mvnw clean test
 ```
 
+Полный локальный quality gate:
+
+```bash
+./mvnw clean verify
+```
+
+Эта команда прогоняет тот же build/test baseline и дополнительно проверяет форматирование handwritten Java sources через `spotless` и lightweight static analysis main-code paths через `spotbugs`. Если formatter сообщает нарушения, их можно исправить командой:
+
+```bash
+./mvnw spotless:apply
+```
+
 Отдельный reproducible perf/load прогон:
 
 ```bash
@@ -86,7 +98,7 @@ docker compose up -d tarantool
 GitHub Actions workflow находится в [`.github/workflows/ci.yml`](.github/workflows/ci.yml) и запускает ту же реальную команду проекта:
 
 ```bash
-./mvnw --batch-mode --no-transfer-progress clean test
+./mvnw --batch-mode --no-transfer-progress clean verify
 ```
 
 Никаких декоративных шагов без сборки проекта в workflow нет.

@@ -1,4 +1,2 @@
-/**
- * Tarantool storage layer и репозиторные адаптеры.
- */
+/** Tarantool storage layer и репозиторные адаптеры. */
 package io.kvservice.storage.tarantool;

@@ -25,5 +25,5 @@ jobs:
       - name: Ensure Maven Wrapper is executable
         run: chmod +x mvnw
 
-      - name: Run build and tests
-        run: ./mvnw --batch-mode --no-transfer-progress clean test
+      - name: Run quality gate
+        run: ./mvnw --batch-mode --no-transfer-progress clean verify

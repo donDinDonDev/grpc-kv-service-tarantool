@@ -1,4 +1,2 @@
-/**
- * Observability-компоненты сервиса.
- */
+/** Observability-компоненты сервиса. */
 package io.kvservice.observability;

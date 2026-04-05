@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter>
+    <!-- Generated protobuf/grpc classes compile into io.kvservice.api.v1; exclude them from the handwritten-code gate. -->
+    <Match>
+        <Package name="io.kvservice.api.v1"/>
+    </Match>
+
+    <!-- Spring-managed collaborators are intentionally kept by reference; these EI_EXPOSE_REP2 hits are DI noise. -->
+    <Match>
+        <Class name="io.kvservice.application.DeleteValueUseCase"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="io.kvservice.application.GetValueUseCase"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="io.kvservice.application.PutValueUseCase"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="io.kvservice.observability.GrpcObservabilityInterceptor"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="io.kvservice.observability.RangeStreamMetrics"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="io.kvservice.observability.TarantoolObservability"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+
+    <!-- ConfigurationProperties intentionally exposes nested mutable holders for binding. -->
+    <Match>
+        <Class name="io.kvservice.config.KvServiceProperties"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="io.kvservice.config.KvServiceProperties$Tarantool"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+
+    <!-- Private monitor is used only to wake waiters; the condition is re-checked in the wait loop. -->
+    <Match>
+        <Class name="io.kvservice.transport.grpc.GrpcRangeResponseWriter"/>
+        <Method name="signalReadiness"/>
+        <Bug pattern="NN_NAKED_NOTIFY"/>
+    </Match>
+</FindBugsFilter>

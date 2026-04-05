@@ -8,7 +8,7 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 @ConfigurationPropertiesScan
 public class KvServiceApplication {
 
-    public static void main(String[] args) {
-        SpringApplication.run(KvServiceApplication.class, args);
-    }
+  public static void main(String[] args) {
+    SpringApplication.run(KvServiceApplication.class, args);
+  }
 }

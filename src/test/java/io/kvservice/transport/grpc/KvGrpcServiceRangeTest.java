@@ -1,15 +1,6 @@
 package io.kvservice.transport.grpc;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import java.time.Duration;
-import java.util.List;
-import java.util.Optional;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 import io.grpc.Context;
 import io.grpc.Status;
@@ -28,135 +19,154 @@ import io.kvservice.application.storage.StoredEntry;
 import io.kvservice.application.storage.StoredValue;
 import io.kvservice.observability.RangeStreamMetrics;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import java.time.Duration;
+import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.util.unit.DataSize;
 
 class KvGrpcServiceRangeTest {
 
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
-    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+  private final ExecutorService executor = Executors.newSingleThreadExecutor();
+  private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
-    @AfterEach
-    void shutdownExecutor() {
-        this.executor.shutdownNow();
-        this.scheduler.shutdownNow();
+  @AfterEach
+  void shutdownExecutor() {
+    this.executor.shutdownNow();
+    this.scheduler.shutdownNow();
+  }
+
+  @Test
+  void enforcesConfiguredActiveRangeStreamLimitAndReleasesPermitOnCancellation() throws Exception {
+    BlockingRangeStorage storage = new BlockingRangeStorage();
+    KvGrpcService service = serviceFor(storage, Duration.ofSeconds(3), 1);
+
+    TestServerCallStreamObserver<RangeItem> firstObserver = new TestServerCallStreamObserver<>();
+    firstObserver.setReady(false);
+    Context.CancellableContext firstContext = Context.current().withCancellation();
+    Future<?> firstCall =
+        this.executor.submit(
+            () ->
+                firstContext.run(
+                    () ->
+                        service.range(
+                            RangeRequest.newBuilder().setKeySince("a").setKeyTo("z").build(),
+                            firstObserver)));
+
+    assertThat(storage.firstBatchStarted.await(5, TimeUnit.SECONDS)).isTrue();
+
+    TestServerCallStreamObserver<RangeItem> secondObserver = new TestServerCallStreamObserver<>();
+    service.range(RangeRequest.newBuilder().setKeySince("a").setKeyTo("z").build(), secondObserver);
+
+    assertThat(secondObserver.error()).isInstanceOf(StatusRuntimeException.class);
+    assertThat(((StatusRuntimeException) secondObserver.error()).getStatus().getCode())
+        .isEqualTo(Status.Code.UNAVAILABLE);
+
+    firstContext.cancel(null);
+    firstCall.get(5, TimeUnit.SECONDS);
+
+    assertThat(firstObserver.error()).isInstanceOf(StatusRuntimeException.class);
+    assertThat(((StatusRuntimeException) firstObserver.error()).getStatus().getCode())
+        .isEqualTo(Status.Code.CANCELLED);
+
+    TestServerCallStreamObserver<RangeItem> thirdObserver = new TestServerCallStreamObserver<>();
+    service.range(RangeRequest.newBuilder().setKeySince("a").setKeyTo("z").build(), thirdObserver);
+
+    assertThat(thirdObserver.completed()).isTrue();
+    assertThat(thirdObserver.error()).isNull();
+    assertThat(storage.rangeRequests).hasSize(2);
+  }
+
+  @Test
+  void stopsStreamingWithDeadlineExceededWhenClientStopsReading() throws Exception {
+    BlockingRangeStorage storage = new BlockingRangeStorage();
+    KvGrpcService service = serviceFor(storage, Duration.ofSeconds(3), 1);
+
+    TestServerCallStreamObserver<RangeItem> observer = new TestServerCallStreamObserver<>();
+    observer.setReady(false);
+    Future<?> call =
+        this.executor.submit(
+            () ->
+                Context.current()
+                    .withDeadlineAfter(50, TimeUnit.MILLISECONDS, this.scheduler)
+                    .run(
+                        () ->
+                            service.range(
+                                RangeRequest.newBuilder().setKeySince("a").setKeyTo("z").build(),
+                                observer)));
+
+    assertThat(storage.firstBatchStarted.await(5, TimeUnit.SECONDS)).isTrue();
+    call.get(5, TimeUnit.SECONDS);
+
+    assertThat(observer.values()).isEmpty();
+    assertThat(observer.completed()).isFalse();
+    assertThat(observer.error()).isInstanceOf(StatusRuntimeException.class);
+    assertThat(((StatusRuntimeException) observer.error()).getStatus().getCode())
+        .isEqualTo(Status.Code.DEADLINE_EXCEEDED);
+    assertThat(storage.rangeRequests).hasSize(1);
+  }
+
+  private KvGrpcService serviceFor(
+      KeyValueStoragePort storage, Duration unaryDeadline, int maxActiveStreams) {
+    KeyValueValidator validator =
+        new KeyValueValidator(DataSize.ofBytes(32), DataSize.ofBytes(1024));
+    return new KvGrpcService(
+        new PutValueUseCase(storage, validator),
+        new GetValueUseCase(storage, validator),
+        new DeleteValueUseCase(storage, validator),
+        new RangeValueUseCase(storage, validator, 1),
+        new CountEntriesUseCase(storage),
+        new GrpcNullableBytesMapper(),
+        new GrpcUnaryRequestBudgetFactory(unaryDeadline),
+        new GrpcCountRequestBudgetFactory(Duration.ofSeconds(15)),
+        new GrpcStatusTranslator(),
+        new RangeStreamPermitLimiter(maxActiveStreams),
+        new RangeStreamMetrics(new SimpleMeterRegistry()));
+  }
+
+  private static final class BlockingRangeStorage implements KeyValueStoragePort {
+
+    private final CountDownLatch firstBatchStarted = new CountDownLatch(1);
+    private final List<RangeBatchQuery> rangeRequests =
+        new java.util.concurrent.CopyOnWriteArrayList<>();
+    private int callCount;
+
+    @Override
+    public void put(String key, StoredValue value, Duration timeout) {
+      throw new UnsupportedOperationException();
     }
 
-    @Test
-    void enforcesConfiguredActiveRangeStreamLimitAndReleasesPermitOnCancellation() throws Exception {
-        BlockingRangeStorage storage = new BlockingRangeStorage();
-        KvGrpcService service = serviceFor(storage, Duration.ofSeconds(3), 1);
-
-        TestServerCallStreamObserver<RangeItem> firstObserver = new TestServerCallStreamObserver<>();
-        firstObserver.setReady(false);
-        Context.CancellableContext firstContext = Context.current().withCancellation();
-        Future<?> firstCall = this.executor.submit(() -> firstContext.run(() -> service.range(
-                RangeRequest.newBuilder().setKeySince("a").setKeyTo("z").build(),
-                firstObserver
-        )));
-
-        assertThat(storage.firstBatchStarted.await(5, TimeUnit.SECONDS)).isTrue();
-
-        TestServerCallStreamObserver<RangeItem> secondObserver = new TestServerCallStreamObserver<>();
-        service.range(RangeRequest.newBuilder().setKeySince("a").setKeyTo("z").build(), secondObserver);
-
-        assertThat(secondObserver.error()).isInstanceOf(StatusRuntimeException.class);
-        assertThat(((StatusRuntimeException) secondObserver.error()).getStatus().getCode())
-                .isEqualTo(Status.Code.UNAVAILABLE);
-
-        firstContext.cancel(null);
-        firstCall.get(5, TimeUnit.SECONDS);
-
-        assertThat(firstObserver.error()).isInstanceOf(StatusRuntimeException.class);
-        assertThat(((StatusRuntimeException) firstObserver.error()).getStatus().getCode())
-                .isEqualTo(Status.Code.CANCELLED);
-
-        TestServerCallStreamObserver<RangeItem> thirdObserver = new TestServerCallStreamObserver<>();
-        service.range(RangeRequest.newBuilder().setKeySince("a").setKeyTo("z").build(), thirdObserver);
-
-        assertThat(thirdObserver.completed()).isTrue();
-        assertThat(thirdObserver.error()).isNull();
-        assertThat(storage.rangeRequests).hasSize(2);
+    @Override
+    public Optional<StoredEntry> get(String key, Duration timeout) {
+      throw new UnsupportedOperationException();
     }
 
-    @Test
-    void stopsStreamingWithDeadlineExceededWhenClientStopsReading() throws Exception {
-        BlockingRangeStorage storage = new BlockingRangeStorage();
-        KvGrpcService service = serviceFor(storage, Duration.ofSeconds(3), 1);
-
-        TestServerCallStreamObserver<RangeItem> observer = new TestServerCallStreamObserver<>();
-        observer.setReady(false);
-        Future<?> call = this.executor.submit(() -> Context.current()
-                .withDeadlineAfter(50, TimeUnit.MILLISECONDS, this.scheduler)
-                .run(() -> service.range(
-                        RangeRequest.newBuilder().setKeySince("a").setKeyTo("z").build(),
-                        observer
-                )));
-
-        assertThat(storage.firstBatchStarted.await(5, TimeUnit.SECONDS)).isTrue();
-        call.get(5, TimeUnit.SECONDS);
-
-        assertThat(observer.values()).isEmpty();
-        assertThat(observer.completed()).isFalse();
-        assertThat(observer.error()).isInstanceOf(StatusRuntimeException.class);
-        assertThat(((StatusRuntimeException) observer.error()).getStatus().getCode())
-                .isEqualTo(Status.Code.DEADLINE_EXCEEDED);
-        assertThat(storage.rangeRequests).hasSize(1);
+    @Override
+    public void delete(String key, Duration timeout) {
+      throw new UnsupportedOperationException();
     }
 
-    private KvGrpcService serviceFor(KeyValueStoragePort storage, Duration unaryDeadline, int maxActiveStreams) {
-        KeyValueValidator validator = new KeyValueValidator(DataSize.ofBytes(32), DataSize.ofBytes(1024));
-        return new KvGrpcService(
-                new PutValueUseCase(storage, validator),
-                new GetValueUseCase(storage, validator),
-                new DeleteValueUseCase(storage, validator),
-                new RangeValueUseCase(storage, validator, 1),
-                new CountEntriesUseCase(storage),
-                new GrpcNullableBytesMapper(),
-                new GrpcUnaryRequestBudgetFactory(unaryDeadline),
-                new GrpcCountRequestBudgetFactory(Duration.ofSeconds(15)),
-                new GrpcStatusTranslator(),
-                new RangeStreamPermitLimiter(maxActiveStreams),
-                new RangeStreamMetrics(new SimpleMeterRegistry())
-        );
+    @Override
+    public long count(Duration timeout) {
+      return 0;
     }
 
-    private static final class BlockingRangeStorage implements KeyValueStoragePort {
-
-        private final CountDownLatch firstBatchStarted = new CountDownLatch(1);
-        private final List<RangeBatchQuery> rangeRequests = new java.util.concurrent.CopyOnWriteArrayList<>();
-        private int callCount;
-
-        @Override
-        public void put(String key, StoredValue value, Duration timeout) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Optional<StoredEntry> get(String key, Duration timeout) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void delete(String key, Duration timeout) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public long count(Duration timeout) {
-            return 0;
-        }
-
-        @Override
-        public List<StoredEntry> getRangeBatch(RangeBatchQuery query, Duration timeout) {
-            this.rangeRequests.add(query);
-            this.callCount++;
-            if (this.callCount == 1) {
-                this.firstBatchStarted.countDown();
-                return List.of(new StoredEntry("b", StoredValue.nullValue()));
-            }
-            return List.of();
-        }
+    @Override
+    public List<StoredEntry> getRangeBatch(RangeBatchQuery query, Duration timeout) {
+      this.rangeRequests.add(query);
+      this.callCount++;
+      if (this.callCount == 1) {
+        this.firstBatchStarted.countDown();
+        return List.of(new StoredEntry("b", StoredValue.nullValue()));
+      }
+      return List.of();
     }
+  }
 }

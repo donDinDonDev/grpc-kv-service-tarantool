@@ -19,56 +19,51 @@ import org.springframework.grpc.server.ServerBuilderCustomizer;
 @Configuration(proxyBeanMethods = false)
 public class ObservabilityConfiguration {
 
-    @Bean
-    TarantoolObservability tarantoolObservability(
-            MeterRegistry meterRegistry,
-            ObservationRegistry observationRegistry,
-            ObjectProvider<Tracer> tracerProvider
-    ) {
-        return new TarantoolObservability(
-                meterRegistry,
-                observationRegistry,
-                tracerProvider.getIfAvailable(() -> Tracer.NOOP)
-        );
-    }
+  @Bean
+  TarantoolObservability tarantoolObservability(
+      MeterRegistry meterRegistry,
+      ObservationRegistry observationRegistry,
+      ObjectProvider<Tracer> tracerProvider) {
+    return new TarantoolObservability(
+        meterRegistry, observationRegistry, tracerProvider.getIfAvailable(() -> Tracer.NOOP));
+  }
 
-    @Bean
-    RangeStreamMetrics rangeStreamMetrics(MeterRegistry meterRegistry) {
-        return new RangeStreamMetrics(meterRegistry);
-    }
+  @Bean
+  RangeStreamMetrics rangeStreamMetrics(MeterRegistry meterRegistry) {
+    return new RangeStreamMetrics(meterRegistry);
+  }
 
-    @Bean
-    @GlobalServerInterceptor
-    @Order(0)
-    GrpcObservabilityInterceptor grpcObservabilityInterceptor(
-            MeterRegistry meterRegistry,
-            ObjectProvider<Tracer> tracerProvider,
-            ObjectProvider<Propagator> propagatorProvider
-    ) {
-        return new GrpcObservabilityInterceptor(
-                meterRegistry,
-                tracerProvider.getIfAvailable(() -> Tracer.NOOP),
-                propagatorProvider.getIfAvailable(() -> Propagator.NOOP)
-        );
-    }
+  @Bean
+  @GlobalServerInterceptor
+  @Order(0)
+  GrpcObservabilityInterceptor grpcObservabilityInterceptor(
+      MeterRegistry meterRegistry,
+      ObjectProvider<Tracer> tracerProvider,
+      ObjectProvider<Propagator> propagatorProvider) {
+    return new GrpcObservabilityInterceptor(
+        meterRegistry,
+        tracerProvider.getIfAvailable(() -> Tracer.NOOP),
+        propagatorProvider.getIfAvailable(() -> Propagator.NOOP));
+  }
 
-    @Bean
-    @GlobalServerInterceptor
-    @Order(1)
-    GrpcResponseSizeLimitInterceptor grpcResponseSizeLimitInterceptor(KvServiceProperties properties) {
-        return new GrpcResponseSizeLimitInterceptor(properties.getGrpc().getMaxResponseBytes().toBytes());
-    }
+  @Bean
+  @GlobalServerInterceptor
+  @Order(1)
+  GrpcResponseSizeLimitInterceptor grpcResponseSizeLimitInterceptor(
+      KvServiceProperties properties) {
+    return new GrpcResponseSizeLimitInterceptor(
+        properties.getGrpc().getMaxResponseBytes().toBytes());
+  }
 
-    @Bean
-    @SuppressWarnings({ "rawtypes", "unchecked" })
-    ServerBuilderCustomizer grpcRequestSizeLimitCustomizer(KvServiceProperties properties) {
-        int maxRequestBytes = Math.toIntExact(properties.getGrpc().getMaxRequestBytes().toBytes());
-        return new ServerBuilderCustomizer() {
-            @Override
-            public void customize(ServerBuilder serverBuilder) {
-                serverBuilder.maxInboundMessageSize(maxRequestBytes);
-            }
-        };
-    }
-
+  @Bean
+  @SuppressWarnings({"rawtypes", "unchecked"})
+  ServerBuilderCustomizer grpcRequestSizeLimitCustomizer(KvServiceProperties properties) {
+    int maxRequestBytes = Math.toIntExact(properties.getGrpc().getMaxRequestBytes().toBytes());
+    return new ServerBuilderCustomizer() {
+      @Override
+      public void customize(ServerBuilder serverBuilder) {
+        serverBuilder.maxInboundMessageSize(maxRequestBytes);
+      }
+    };
+  }
 }
