@@ -58,7 +58,7 @@ kvservice:
     unary: 3s
     count: 15s
   range:
-    batch-size: 512
+    batch-size: 256
     max-active-streams: 16
   tarantool:
     enabled: ${KV_TARANTOOL_ENABLED:true}

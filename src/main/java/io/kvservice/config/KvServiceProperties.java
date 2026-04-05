@@ -107,7 +107,7 @@ public class KvServiceProperties {
 
     public static final class Range {
 
-        private int batchSize = 512;
+        private int batchSize = 256;
 
         private int maxActiveStreams = 16;
 

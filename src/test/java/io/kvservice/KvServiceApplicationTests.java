@@ -26,7 +26,7 @@ class KvServiceApplicationTests {
         assertThat(this.properties.getLimits().getMaxValueBytes()).isEqualTo(DataSize.ofMegabytes(1));
         assertThat(this.properties.getDeadlines().getUnary()).hasSeconds(3);
         assertThat(this.properties.getDeadlines().getCount()).hasSeconds(15);
-        assertThat(this.properties.getRange().getBatchSize()).isEqualTo(512);
+        assertThat(this.properties.getRange().getBatchSize()).isEqualTo(256);
         assertThat(this.properties.getRange().getMaxActiveStreams()).isEqualTo(16);
         assertThat(this.properties.getTarantool().isEnabled()).isFalse();
         assertThat(this.properties.getTarantool().getHost()).isEqualTo("127.0.0.1");

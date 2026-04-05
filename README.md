@@ -67,6 +67,14 @@ docker compose up -d tarantool
 ./mvnw clean test
 ```
 
+Отдельный reproducible perf/load прогон:
+
+```bash
+./mvnw -Pperf verify
+```
+
+Этот профиль не подтягивается в обычный `clean test`, пишет evidence в `target/perf-reports/kvservice-performance-report.md` и описан в [`docs/performance-note.md`](docs/performance-note.md).
+
 GitHub Actions workflow находится в [`.github/workflows/ci.yml`](.github/workflows/ci.yml) и запускает ту же реальную команду проекта:
 
 ```bash
@@ -168,7 +176,7 @@ docker compose up --build -d
 | Max value size | `1MiB` | Проверяется только для ненулевого payload. |
 | Default unary deadline (`put/get/delete`) | `3s` | Используется, если клиент не прислал собственный deadline. |
 | Default `count` deadline | `15s` | Отдельный timeout profile для потенциально более тяжёлой операции. |
-| Internal `range` batch size | `512` | Внутренняя деталь реализации, не часть внешнего контракта. |
+| Internal `range` batch size | `256` | Текущий repo default после perf review; не часть внешнего контракта. Конкретные сравнения нужно читать по свежему generated perf report. |
 | Max active `range` streams | `16` | При превышении лимита сервис возвращает `UNAVAILABLE`. |
 
 ### Health, metrics и порты
