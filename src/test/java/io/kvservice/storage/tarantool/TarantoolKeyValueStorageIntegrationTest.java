@@ -20,6 +20,8 @@ import io.kvservice.observability.TarantoolObservability;
 import io.tarantool.client.box.TarantoolBoxClient;
 import io.tarantool.client.factory.TarantoolFactory;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.observation.ObservationRegistry;
+import io.micrometer.tracing.Tracer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
@@ -187,12 +189,12 @@ class TarantoolKeyValueStorageIntegrationTest {
             KeyValueStoragePort firstStorage = new TarantoolKeyValueStorage(
                     firstClient,
                     TEST_REQUEST_TIMEOUT,
-                    new TarantoolObservability(new SimpleMeterRegistry())
+                    new TarantoolObservability(new SimpleMeterRegistry(), ObservationRegistry.create(), Tracer.NOOP)
             );
             KeyValueStoragePort secondStorage = new TarantoolKeyValueStorage(
                     secondClient,
                     TEST_REQUEST_TIMEOUT,
-                    new TarantoolObservability(new SimpleMeterRegistry())
+                    new TarantoolObservability(new SimpleMeterRegistry(), ObservationRegistry.create(), Tracer.NOOP)
             );
             ExecutorService executor = Executors.newFixedThreadPool(2);
             try {
@@ -232,12 +234,12 @@ class TarantoolKeyValueStorageIntegrationTest {
             KeyValueStoragePort firstStorage = new TarantoolKeyValueStorage(
                     firstClient,
                     TEST_REQUEST_TIMEOUT,
-                    new TarantoolObservability(new SimpleMeterRegistry())
+                    new TarantoolObservability(new SimpleMeterRegistry(), ObservationRegistry.create(), Tracer.NOOP)
             );
             KeyValueStoragePort secondStorage = new TarantoolKeyValueStorage(
                     secondClient,
                     TEST_REQUEST_TIMEOUT,
-                    new TarantoolObservability(new SimpleMeterRegistry())
+                    new TarantoolObservability(new SimpleMeterRegistry(), ObservationRegistry.create(), Tracer.NOOP)
             );
             ExecutorService executor = Executors.newFixedThreadPool(2);
             try {

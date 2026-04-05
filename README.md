@@ -10,7 +10,7 @@ gRPC key-value сервис на Spring Boot 4 и Tarantool. Публичный 
 - `application` содержит валидацию, nullable semantics, deadline budget и правила для `Put/Get/Delete/Range/Count` без привязки к Tarantool SDK.
 - `storage.tarantool` реализует доступ к `space KV`, точный `count()`, batched `range` и idempotent init через Tarantool.
 - `config` связывает профили `local`/`container`, порты, лимиты, deadlines и параметры подключения.
-- `observability` отвечает за structured logging, readiness/liveness, метрики и ограничения runtime-потока вроде контроля активных `range`-stream.
+- `observability` отвечает за structured logging, readiness/liveness, метрики, Micrometer/OpenTelemetry-compatible tracing и ограничения runtime-потока вроде контроля активных `range`-stream.
 
 ## Требования
 
@@ -141,6 +141,11 @@ docker compose up --build -d
 | `SPRING_PROFILES_ACTIVE` | `local` | Профиль запуска. Для контейнера используется `container`. |
 | `KV_HTTP_PORT` | `8080` | HTTP/Actuator порт. |
 | `KV_GRPC_PORT` | `9090` | gRPC порт сервиса. |
+| `MANAGEMENT_SERVER_PORT` | не задан | Опциональный отдельный Actuator listener. Если задан, Actuator endpoints переезжают на этот порт, а на основном HTTP listener остаются `/livez` и `/readyz`. |
+| `MANAGEMENT_SERVER_ADDRESS` | не задан | Опциональный bind address для отдельного management listener. |
+| `MANAGEMENT_TRACING_EXPORT_ENABLED` | `true` | Включает tracing auto-configuration для trace propagation/export. При `false` базовый runtime, request-id и метрики продолжают работать без tracing stack. |
+| `MANAGEMENT_TRACING_SAMPLING_PROBABILITY` | `0.1` | Доля request-ов, для которых создаётся sampled trace. |
+| `MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT` | не задан | OTLP endpoint для экспорта trace-ов. Без этой настройки внешний backend не требуется. |
 | `KV_TARANTOOL_HOST` | `127.0.0.1` в `local`, `tarantool` в `container` | Адрес Tarantool. |
 | `KV_TARANTOOL_PORT` | `3301` | Порт Tarantool. |
 | `KV_TARANTOOL_USERNAME` | `kvservice` | Пользователь Tarantool. |
@@ -176,6 +181,8 @@ docker compose up --build -d
 - metrics endpoint: `/actuator/metrics`
 
 Readiness зависит от доступности Tarantool и пространства `KV`, а liveness от состояния Tarantool не зависит. Логи пишутся в structured JSON format в stdout.
+
+Если включён отдельный management listener через `MANAGEMENT_SERVER_PORT`, Actuator endpoints публикуются на management port, а основной HTTP listener дополнительно отдаёт `/livez` и `/readyz`, чтобы orchestration probes продолжали проверять основной listener, а не только отдельный management context. Tracing/export остаётся опциональным: starter уже включён в runtime, но auto-configuration можно отключить через `MANAGEMENT_TRACING_EXPORT_ENABLED=false`, а внешний backend нужен только если задан `MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT`. OTLP metrics export по умолчанию выключен, чтобы tracing не тащил за собой отдельный metrics backend.
 
 ## Инициализация Tarantool
 

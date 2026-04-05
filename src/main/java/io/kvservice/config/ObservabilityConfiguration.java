@@ -6,6 +6,10 @@ import io.kvservice.observability.GrpcResponseSizeLimitInterceptor;
 import io.kvservice.observability.RangeStreamMetrics;
 import io.kvservice.observability.TarantoolObservability;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.observation.ObservationRegistry;
+import io.micrometer.tracing.Tracer;
+import io.micrometer.tracing.propagation.Propagator;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -16,8 +20,16 @@ import org.springframework.grpc.server.ServerBuilderCustomizer;
 public class ObservabilityConfiguration {
 
     @Bean
-    TarantoolObservability tarantoolObservability(MeterRegistry meterRegistry) {
-        return new TarantoolObservability(meterRegistry);
+    TarantoolObservability tarantoolObservability(
+            MeterRegistry meterRegistry,
+            ObservationRegistry observationRegistry,
+            ObjectProvider<Tracer> tracerProvider
+    ) {
+        return new TarantoolObservability(
+                meterRegistry,
+                observationRegistry,
+                tracerProvider.getIfAvailable(() -> Tracer.NOOP)
+        );
     }
 
     @Bean
@@ -28,8 +40,16 @@ public class ObservabilityConfiguration {
     @Bean
     @GlobalServerInterceptor
     @Order(0)
-    GrpcObservabilityInterceptor grpcObservabilityInterceptor(MeterRegistry meterRegistry) {
-        return new GrpcObservabilityInterceptor(meterRegistry);
+    GrpcObservabilityInterceptor grpcObservabilityInterceptor(
+            MeterRegistry meterRegistry,
+            ObjectProvider<Tracer> tracerProvider,
+            ObjectProvider<Propagator> propagatorProvider
+    ) {
+        return new GrpcObservabilityInterceptor(
+                meterRegistry,
+                tracerProvider.getIfAvailable(() -> Tracer.NOOP),
+                propagatorProvider.getIfAvailable(() -> Propagator.NOOP)
+        );
     }
 
     @Bean

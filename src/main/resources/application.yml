@@ -15,24 +15,29 @@ spring:
           enabled: true
 
 management:
-  endpoints:
-    web:
-      exposure:
-        include: health,metrics
   endpoint:
     health:
       probes:
         enabled: true
+        add-additional-paths: true
       group:
         liveness:
           include: livenessState
         readiness:
           include: readinessState,tarantool
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics
   health:
     livenessstate:
       enabled: true
     readinessstate:
       enabled: true
+  otlp:
+    metrics:
+      export:
+        enabled: false
 
 logging:
   structured:

@@ -11,6 +11,7 @@ import java.time.Duration;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
@@ -29,6 +30,8 @@ import org.testcontainers.utility.MountableFile;
         webEnvironment = WebEnvironment.RANDOM_PORT,
         properties = {
                 "spring.grpc.server.port=0",
+                "management.server.port=0",
+                "management.server.address=127.0.0.1",
                 "kvservice.tarantool.connect-timeout=500ms",
                 "kvservice.tarantool.request-timeout=500ms"
         }
@@ -60,7 +63,10 @@ class ActuatorHealthIntegrationTest {
     private final HttpClient httpClient = HttpClient.newHttpClient();
 
     @LocalServerPort
-    private int port;
+    private int applicationPort;
+
+    @Value("${local.management.port}")
+    private int managementPort;
 
     @DynamicPropertySource
     static void tarantoolProperties(DynamicPropertyRegistry registry) {
@@ -74,28 +80,40 @@ class ActuatorHealthIntegrationTest {
     }
 
     @Test
-    void readinessDependsOnTarantoolWhileLivenessDoesNot() throws Exception {
-        HttpResponse<String> livenessBeforeFailure = get("/actuator/health/liveness");
-        HttpResponse<String> readinessBeforeFailure = get("/actuator/health/readiness");
+    void splitManagementPortKeepsLivenessAndReadinessSemanticsOnBothSurfaces() throws Exception {
+        HttpResponse<String> livenessBeforeFailure = get(this.managementPort, "/actuator/health/liveness");
+        HttpResponse<String> readinessBeforeFailure = get(this.managementPort, "/actuator/health/readiness");
+        HttpResponse<String> livezBeforeFailure = get(this.applicationPort, "/livez");
+        HttpResponse<String> readyzBeforeFailure = get(this.applicationPort, "/readyz");
 
         assertThat(livenessBeforeFailure.statusCode()).isEqualTo(200);
         assertThat(livenessBeforeFailure.body()).contains("\"status\":\"UP\"");
         assertThat(readinessBeforeFailure.statusCode()).isEqualTo(200);
         assertThat(readinessBeforeFailure.body()).contains("\"status\":\"UP\"");
+        assertThat(livezBeforeFailure.statusCode()).isEqualTo(200);
+        assertThat(livezBeforeFailure.body()).contains("\"status\":\"UP\"");
+        assertThat(readyzBeforeFailure.statusCode()).isEqualTo(200);
+        assertThat(readyzBeforeFailure.body()).contains("\"status\":\"UP\"");
 
         TARANTOOL.stop();
 
-        HttpResponse<String> readinessAfterFailure = get("/actuator/health/readiness");
-        HttpResponse<String> livenessAfterFailure = get("/actuator/health/liveness");
+        HttpResponse<String> readinessAfterFailure = get(this.managementPort, "/actuator/health/readiness");
+        HttpResponse<String> livenessAfterFailure = get(this.managementPort, "/actuator/health/liveness");
+        HttpResponse<String> readyzAfterFailure = get(this.applicationPort, "/readyz");
+        HttpResponse<String> livezAfterFailure = get(this.applicationPort, "/livez");
 
         assertThat(readinessAfterFailure.statusCode()).isGreaterThanOrEqualTo(500);
         assertThat(readinessAfterFailure.body()).containsAnyOf("\"status\":\"DOWN\"", "\"status\":\"OUT_OF_SERVICE\"");
         assertThat(livenessAfterFailure.statusCode()).isEqualTo(200);
         assertThat(livenessAfterFailure.body()).contains("\"status\":\"UP\"");
+        assertThat(readyzAfterFailure.statusCode()).isGreaterThanOrEqualTo(500);
+        assertThat(readyzAfterFailure.body()).containsAnyOf("\"status\":\"DOWN\"", "\"status\":\"OUT_OF_SERVICE\"");
+        assertThat(livezAfterFailure.statusCode()).isEqualTo(200);
+        assertThat(livezAfterFailure.body()).contains("\"status\":\"UP\"");
     }
 
-    private HttpResponse<String> get(String path) throws Exception {
-        HttpRequest request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + this.port + path))
+    private HttpResponse<String> get(int port, String path) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
                 .GET()
                 .build();
         return this.httpClient.send(request, HttpResponse.BodyHandlers.ofString());

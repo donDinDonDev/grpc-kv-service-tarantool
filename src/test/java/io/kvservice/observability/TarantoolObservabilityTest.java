@@ -8,6 +8,8 @@ import java.util.concurrent.TimeoutException;
 import io.grpc.Context;
 import io.kvservice.application.storage.StorageAccessException;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.observation.ObservationRegistry;
+import io.micrometer.tracing.Tracer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.system.CapturedOutput;
@@ -19,7 +21,11 @@ class TarantoolObservabilityTest {
     @Test
     void recordsTimeoutAndReconnectSignalsWithoutLeakingRawKey(CapturedOutput output) {
         SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
-        TarantoolObservability observability = new TarantoolObservability(meterRegistry);
+        TarantoolObservability observability = new TarantoolObservability(
+                meterRegistry,
+                ObservationRegistry.create(),
+                Tracer.NOOP
+        );
 
         Context.current().withValue(CorrelationIdSupport.REQUEST_ID_CONTEXT, "req-789").run(() ->
                 assertThatThrownBy(() -> observability.observe("get", SafeLogFields.forKey("key", "secret-key"), () -> {
